@@ -1,57 +1,29 @@
-version: '3.6'
-
-x-build-args: &build_args
-  INSTALL_PYTHON_VERSION: 3.8
-  INSTALL_NODE_VERSION: 12
-
-x-default-volumes: &default_volumes
-  volumes:
-    - ./:/app
-    - node-modules:/app/node_modules
-    - ./dev.db:/tmp/dev.db
+version: '2'
 
 services:
-  flask-dev:
-    build:
-      context: .
-      target: development
-      args:
-        <<: *build_args
-    image: "bamcis-development"
-    ports:
-      - "5000:5000"
-      - "2992:2992"
-    <<: *default_volumes
-
-  flask-prod:
-    build:
-      context: .
-      target: production
-      args:
-        <<: *build_args
-    image: "bamcis-production"
-    ports:
-      - "5000:5000"
+  postgres:
+    image: postgres:9.6
+  web:
+    restart: always
     environment:
-      FLASK_ENV: production
-      FLASK_DEBUG: 0
-      LOG_LEVEL: info
-      GUNICORN_WORKERS: 4
-    <<: *default_volumes
-
-  manage:
-    build:
-      context: .
-      target: manage
-    environment:
-      FLASK_ENV: production
-      FLASK_DEBUG: 0
-    image: "bamcis-manage"
-    stdin_open: true
-    tty: true
-    <<: *default_volumes
-
-volumes:
-  node-modules:
-  static-build:
-  dev-db:
+      - DJANGO_SECRET_KEY=local
+    image: web
+    build: ./
+    command: >
+      bash -c "python wait_for_postgres.py &&
+               ./manage.py migrate &&
+               ./manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - ./:/code
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+  documentation:
+    restart: always
+    build: ./
+    command: "mkdocs serve"
+    volumes:
+      - ./:/code
+    ports:
+      - "8001:8001"
